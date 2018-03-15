@@ -51,6 +51,11 @@ architecture rtl of top is
   constant V_RES          : natural := V_RES_ARRAY(RES_TYPE);
   constant MEM_ADDR_WIDTH : natural := MEM_ADDR_WIDTH_ARRAY(RES_TYPE);
   constant MEM_SIZE       : natural := MEM_SIZE_ARRAY(RES_TYPE);
+  
+  constant SEKUNDA_TAKTOVA : std_logic_vector(27 downto 0):= "0000000000000000001111101000";  -- 1000       
+  --constant SEKUNDA_TAKTOVA : std_logic_vector(27 downto 0):= "0000000111101000010010000000"; -- 2 000 000
+  constant LOKACIJA_CHAR : std_logic_vector(13 downto 0):= "01001011000000"; -- 4800
+  constant LOKACIJA_PIXEL : std_logic_vector(19 downto 0):= "00000010010110000000"; -- 9600
 
   component vga_top is 
     generic (
@@ -121,7 +126,6 @@ architecture rtl of top is
   );
   end component;
   
-  
   constant update_period     : std_logic_vector(31 downto 0) := conv_std_logic_vector(1, 32);
   
   constant GRAPH_MEM_ADDR_WIDTH : natural := MEM_ADDR_WIDTH + 6;-- graphics addres is scales with minumum char size 8*8 log2(64) = 6
@@ -156,6 +160,23 @@ architecture rtl of top is
   signal dir_blue            : std_logic_vector(7 downto 0);
   signal dir_pixel_column    : std_logic_vector(10 downto 0);
   signal dir_pixel_row       : std_logic_vector(10 downto 0);
+  
+  signal s_combined_color : std_logic_vector (23 downto 0);  -- rgb po 8 bita
+  
+  signal s_count_addr : std_logic_vector (MEM_ADDR_WIDTH-1 downto 0);
+  signal s_count_addr_next : std_logic_vector (MEM_ADDR_WIDTH-1 downto 0);
+  
+  signal s_count_addr_pixel : std_logic_vector (19 downto 0);
+  signal s_count_addr_pixel_next : std_logic_vector (19 downto 0);
+  
+  signal s_brojac_sec : std_logic_vector (27 downto 0);
+  signal s_brojac_sec_next : std_logic_vector (27 downto 0);
+  
+  signal s_sekunda : std_logic;
+  
+  signal s_pomeraj : std_logic_vector (7 downto 0);
+  signal s_pomeraj_next : std_logic_vector (7 downto 0);
+  signal s_pomeri_za : std_logic_vector (7 downto 0);
 
 begin
 
@@ -167,12 +188,15 @@ begin
   
   graphics_lenght <= conv_std_logic_vector(MEM_SIZE*8*8, GRAPH_MEM_ADDR_WIDTH);
   
+  -- Deo ZADATKA 1
+  
+  -- TODO: POGLEDATI top.ucf FAJL. Izmeniti po potrebi!
   -- removed to inputs pin
-  direct_mode <= '1';
-  display_mode     <= "10";  -- 01 - text mode, 10 - graphics mode, 11 - text & graphics
+  direct_mode <= '0';
+  display_mode     <= "11";  -- 01 - text mode, 10 - graphics mode, 11 - text & graphics
   
   font_size        <= x"1";
-  show_frame       <= '1';
+  show_frame       <= '0';
   foreground_color <= x"FFFFFF";
   background_color <= x"000000";
   frame_color      <= x"FF0000";
@@ -246,20 +270,162 @@ begin
     blue_o             => blue_o     
   );
   
+  -- ZADATAK 1
+  
   -- na osnovu signala iz vga_top modula dir_pixel_column i dir_pixel_row realizovati logiku koja genereise
   --dir_red
   --dir_green
   --dir_blue
+  
+  -- direct_mod 1
+  
+  -- http://avisynth.nl/index.php/ColorBars_theory
+  s_combined_color <= x"b4b4b4" when ((dir_pixel_row >= 0) and (dir_pixel_row < 80)) else
+					       x"b4b410" when ((dir_pixel_row >= 80) and (dir_pixel_row < 180)) else
+						    x"10b4b4" when ((dir_pixel_row >= 160) and (dir_pixel_row < 240)) else
+						    x"10b410" when ((dir_pixel_row >= 240) and (dir_pixel_row < 320)) else
+						    x"b410b4" when ((dir_pixel_row >= 320) and (dir_pixel_row < 400)) else
+						    x"b41010" when ((dir_pixel_row >= 400) and (dir_pixel_row < 480)) else
+						    x"ebebeb" when ((dir_pixel_row >= 480) and (dir_pixel_row < 560)) else
+						    x"101010" when ((dir_pixel_row >= 560) and (dir_pixel_row < 640)) else
+						    x"101010";
+						
+  dir_red <= s_combined_color(23 downto 16);
+  dir_green <= s_combined_color(15 downto 8);
+  dir_blue <= s_combined_color(7 downto 0);
  
+  -- ZADATAK 2
+  
   -- koristeci signale realizovati logiku koja pise po TXT_MEM
   --char_address
   --char_value
   --char_we
+  
+  -- show_frame 0, direct_mod 0 i display_mod 00
+  
+  char_we <= '1';
+  
+  -- koristimo clock i reset od vga modula
+  process (pix_clock_s, vga_rst_n_s) begin
+		if(vga_rst_n_s = '0') then
+			s_count_addr <= (others => '0');
+		elsif (pix_clock_s'event and pix_clock_s = '1') then
+			s_count_addr <= s_count_addr_next;
+		end if;
+  end process;
+  
+  process (s_count_addr, s_count_addr_next) begin
+		-- 80x60
+		if (s_count_addr_next = LOKACIJA_CHAR) then
+			s_count_addr_next <= (others => '0');
+		else
+			s_count_addr_next <= s_count_addr + 1;
+		end if;
+  end process;
+  
+  char_address <= s_count_addr;
+  
+  char_value <= "000001" when (char_address = (("00" & x"000") + ("000000" & s_pomeri_za))) else -- a
+					 "001100" when (char_address = (("00" & x"001") + ("000000" & s_pomeri_za))) else -- l
+					 "000101" when (char_address = (("00" & x"002") + ("000000" & s_pomeri_za))) else -- e
+					 "001011" when (char_address = (("00" & x"003") + ("000000" & s_pomeri_za))) else -- k
+					 "010011" when (char_address = (("00" & x"004") + ("000000" & s_pomeri_za))) else -- s
+					 "000001" when (char_address = (("00" & x"005") + ("000000" & s_pomeri_za))) else -- a
+					 "100000" when (char_address = (("00" & x"006") + ("000000" & s_pomeri_za))) else -- razmak
+					 "010010" when (char_address = (("00" & x"007") + ("000000" & s_pomeri_za))) else -- r
+ 					 "000001" when (char_address = (("00" & x"008") + ("000000" & s_pomeri_za))) else -- a
+					 "110010" when (char_address = (("00" & x"009") + ("000000" & s_pomeri_za))) else -- 2
+					 "110001" when (char_address = (("00" & x"00A") + ("000000" & s_pomeri_za))) else -- 1
+					 "111000" when (char_address = (("00" & x"00B") + ("000000" & s_pomeri_za))) else -- 8
+					 "100000";
+					 
+  -- ZADATAK 3 i 5, objedinjeni pomerac
+  
+  -- FIXME: Brojanje sekundi nije bas po satu. 1s != 7s
+  -- napraviti brojac od 0 do 2 000 000 za jednu sekundu
+  process (pix_clock_s, vga_rst_n_s) begin
+		if(vga_rst_n_s = '0') then
+			s_brojac_sec <= (others => '0');
+		elsif (pix_clock_s'event and pix_clock_s = '1') then
+			s_brojac_sec <= s_brojac_sec_next;
+		end if;
+  end process;
+  
+  process (s_brojac_sec, s_brojac_sec_next) begin
+		-- 2 000 000
+		if (s_brojac_sec_next = SEKUNDA_TAKTOVA) then
+			s_brojac_sec_next <= (others => '0');
+		else
+			s_brojac_sec_next <= s_brojac_sec + 1;
+		end if;
+  end process;
+  
+  -- realizovati logiku koja kada otkucamo 1s postavi flag na 1
+  s_sekunda <= '1' when (s_brojac_sec = SEKUNDA_TAKTOVA) else 
+               '0';
+  
+  -- tu vrednost dodati char_value adresi
+  process (pix_clock_s, vga_rst_n_s) begin
+		if(vga_rst_n_s = '0') then
+			s_pomeraj <= (others => '0');
+		elsif (pix_clock_s'event and pix_clock_s = '1') then
+			s_pomeraj <= s_pomeraj_next;
+		end if;
+  end process;
+  
+  process (s_pomeraj, s_pomeraj_next, s_sekunda) begin
+		-- pomeraj za X mesta
+		if (s_pomeraj_next = "00001010") then
+			s_pomeraj_next <= (others => '0');
+		elsif (s_sekunda = '1') then
+		  s_pomeraj_next <= s_pomeraj + 1;
+		else
+		  s_pomeraj_next <= s_pomeraj;
+		end if;
+  end process;
+  
+  s_pomeri_za <= s_pomeraj;
   
   -- koristeci signale realizovati logiku koja pise po GRAPH_MEM
   --pixel_address
   --pixel_value
   --pixel_we
   
+  -- show_frame 0, direct_mod 0 i display_mod 10
   
+  pixel_we <= '1';
+  
+  -- osvezavanje adresa
+  process (pix_clock_s, vga_rst_n_s) begin
+		if(vga_rst_n_s = '0') then
+			s_count_addr_pixel <= (others => '0');
+		elsif (pix_clock_s'event and pix_clock_s = '1') then
+			s_count_addr_pixel <= s_count_addr_pixel_next;
+		end if;
+  end process;
+  
+  process (s_count_addr_pixel, s_count_addr_pixel_next) begin
+		-- 20*480
+		if (s_count_addr_pixel_next = LOKACIJA_PIXEL) then
+			s_count_addr_pixel_next <= (others => '0');
+		else
+			s_count_addr_pixel_next <= s_count_addr_pixel + 1;
+		end if;
+  end process;
+  
+  pixel_address <= s_count_addr_pixel;
+  
+  -- dodela vrednosti. pravimo kvadrat na sredini ekrana
+  -- vrednost adrese dobijamo: red*20 + kolona
+  
+  pixel_value <= (others => '1') when (pixel_address = (x"0127A" + (x"000" & s_pomeri_za))) else
+					  (others => '1') when (pixel_address = (x"0128E" + (x"000" & s_pomeri_za))) else
+					  (others => '1') when (pixel_address = (x"012A2" + (x"000" & s_pomeri_za))) else
+					  (others => '1') when (pixel_address = (x"012B6" + (x"000" & s_pomeri_za))) else
+					  (others => '1') when (pixel_address = (x"012CA" + (x"000" & s_pomeri_za))) else
+					  (others => '1') when (pixel_address = (x"012DE" + (x"000" & s_pomeri_za))) else
+					  (others => '1') when (pixel_address = (x"012F2" + (x"000" & s_pomeri_za))) else
+					  (others => '1') when (pixel_address = (x"01306" + (x"000" & s_pomeri_za))) else
+					  (others => '0');
+ 
 end rtl;

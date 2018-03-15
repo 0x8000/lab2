@@ -5,10 +5,13 @@
      behavior or data corruption.  It is strongly advised that
      users do not edit the contents of this file. -->
 <messages>
-<msg type="warning" file="HDLCompiler" num="89" delta="unknown" >"D:/work/lprs2/2013_2014/Postavka/lab2/HDL/synthesis/lab2/../../source/rtl/vhdl/top.vhd" Line 180: &lt;<arg fmt="%s" index="1">oddr2</arg>&gt; remains a black-box since it has no binding entity.
+<msg type="error" file="HDLCompiler" num="1156" delta="unknown" >"D:/materija/RA218-2015/lab2/synthesis/lab2/../../source/tb/vhdl/top_tb.vhd" Line 33: Formal port &lt;<arg fmt="%s" index="1">direct_mode_i</arg>&gt; does not exist in entity &lt;<arg fmt="%s" index="2">top</arg>&gt;.  Please compare the definition of block &lt;<arg fmt="%s" index="3">top</arg>&gt; to its component declaration and its instantion to detect the mismatch.
 </msg>
 
-<msg type="warning" file="Simulator" num="648" delta="unknown" >&quot;<arg fmt="%s" index="1">D:/work/lprs2/2013_2014/Postavka/lab2/HDL/synthesis/lab2/../../source/rtl/vhdl/top.vhd</arg>&quot; Line <arg fmt="%d" index="2">180</arg>. Instance <arg fmt="%s" index="3">oddr2</arg> is unbound
+<msg type="error" file="HDLCompiler" num="1156" delta="unknown" >"D:/materija/RA218-2015/lab2/synthesis/lab2/../../source/tb/vhdl/top_tb.vhd" Line 34: Formal port &lt;<arg fmt="%s" index="1">display_mode_i</arg>&gt; does not exist in entity &lt;<arg fmt="%s" index="2">top</arg>&gt;.  Please compare the definition of block &lt;<arg fmt="%s" index="3">top</arg>&gt; to its component declaration and its instantion to detect the mismatch.
+</msg>
+
+<msg type="error" file="Simulator" num="777" delta="unknown" >Static elaboration of top level VHDL design unit <arg fmt="%s" index="1">top_tb</arg> in library <arg fmt="%s" index="2">work</arg> failed
 </msg>
 
 </messages>

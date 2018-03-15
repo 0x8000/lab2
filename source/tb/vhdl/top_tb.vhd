@@ -70,7 +70,7 @@ begin
     reset_n_i      => reset_n,
     --
     direct_mode_i  => '0',
-    display_mode_i => "10"
+    display_mode_i => "01"
   );
 
   --  test bench statements
